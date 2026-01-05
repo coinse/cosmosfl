@@ -18,6 +18,7 @@ class AutoDebugger(llm_utils.OllamaEngine):
             summarize_messages=False, debug=False, **ri_kwargs):
         super().__init__(endpoint, model_type)
         self._bug_name = bug_name
+        self._dataset = self._get_dataset(self._bug_name)
         self._ri = get_repo_interface(bug_name, **ri_kwargs)
         self._test_offset = test_offset
         self._max_num_tests = max_num_tests
@@ -25,6 +26,60 @@ class AutoDebugger(llm_utils.OllamaEngine):
         self._summarize_messages = summarize_messages
         self._system_file = system_file
         self._debug = debug
+
+    def _get_dataset(self, bug_name):
+        def _name_matches_proj_list(name, proj_list):
+            return any(name.lower() == proj_name.lower()
+                    for proj_name in proj_list)
+        d4j_projects = [
+            'Chart',
+            'Cli',
+            'Closure',
+            'Codec',
+            'Collections',
+            'Compress',
+            'Csv',
+            'Gson',
+            'JacksonCore',
+            'JacksonDatabind',
+            'JacksonXml',
+            'Jsoup',
+            'JxPath',
+            'Lang',
+            'Math',
+            'Mockito',
+            'Time',
+        ]
+
+        bip_projects = [
+            'ansible',
+            'cookiecutter',
+            'pysnooper',
+            'spacy',
+            'sanic',
+            'httpie',
+            'keras',
+            'matplotlib',
+            'thefuck',
+            'pandas',
+            'black',
+            'scrapy',
+            'luigi',
+            'fastapi',
+            'tornado',
+            'tqdm',
+            'youtube-dl',
+        ]
+
+        pid, vid = bug_name.split('_')
+        if _name_matches_proj_list(pid, d4j_projects):
+            return "defects4j"
+        elif _name_matches_proj_list(pid, bip_projects):
+            return "bugsinpy"
+        else:
+            raise ValueError(f"Could not match the project for {bug_name}")
+
+            
 
     def _replace_last_with_memo(self, memo):
         self.messages = self.messages[:-1] # replace recent two queries with memo
@@ -132,8 +187,15 @@ class AutoDebugger(llm_utils.OllamaEngine):
         else:
             prompt_messages = self.messages
 
+        if function_call_mode == "none":
+            prompt_messages.append({
+                'role': 'system',
+                'content': 'NOTICE: You have reached the maximum budget for function calls. Do NOT generate any "Function call:". You must strictly provide the final diagnosis or explanation based on the information you have now.'
+            })
+
         response = self.get_LLM_response(
             messages=prompt_messages,
+            dataset = self._dataset
         )
 
         if self._summarize_messages:
@@ -185,6 +247,7 @@ class AutoDebugger(llm_utils.OllamaEngine):
         self._append_to_messages(querying_buggy_methods)
         response = self.get_LLM_response(
             messages=self.messages,
+            dataset=self._dataset
         )
         response_message = response["choices"][0]["message"]
         self._append_to_messages(response_message)

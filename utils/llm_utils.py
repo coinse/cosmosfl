@@ -22,7 +22,7 @@ class OllamaEngine(ABC):
         full_str += '[Assistant] '
         return full_str
 
-    def parse_response(self, response):
+    def parse_response(self, response, dataset):
         if 'Function call:' in response:
             response = [line for line in response.splitlines() if 'Function call:' in line][0]
             true_response = response.split('Function call:')[1].strip()
@@ -32,12 +32,23 @@ class OllamaEngine(ABC):
             if '=' in arg_value:
                 arg_value = arg_value.split('=')[-1]
             arg_value = arg_value.strip('"').strip("'")
-            if func_name == 'get_failing_tests_covered_methods_for_class':
-                args_dict = {'class_name': arg_value}
-            elif func_name == 'get_failing_tests_covered_classes': 
-                args_dict = {}
-            else:
-                args_dict = {'signature': arg_value}
+            if dataset == 'defects4j':
+                if func_name == 'get_failing_tests_covered_methods_for_class':
+                    args_dict = {'class_name': arg_value}
+                elif func_name == 'get_failing_tests_covered_classes': 
+                    args_dict = {}
+                else:
+                    args_dict = {'signature': arg_value}
+            else: # bugsinpy
+                if func_name == 'get_covered_packages':
+                    args_dict = {}
+                elif func_name == 'get_failing_tests_covered_classes':
+                    args_dict = {'package_name': arg_value}
+                elif func_name == 'get_failing_tests_covered_methods_for_class':
+                    args_dict = {'class_name': arg_value}
+                else:
+                    args_dict = {'signature': arg_value}
+            
             response_obj = {'choices': [{"message": {
                 'role': "assistant",
                 "content": None,
@@ -46,6 +57,8 @@ class OllamaEngine(ABC):
                     "arguments": json.dumps(args_dict),
                 }
             }}]}
+
+                
             return response_obj
         else:
             response_obj = {'choices': [{"message": {
@@ -77,13 +90,14 @@ class OllamaEngine(ABC):
                     break
         raise save_err
 
-    def get_LLM_response(self, **kwargs):
+    def get_LLM_response(self, messages, dataset):
         payload = {
             'model': self._model,
-            'prompt': self._messages2prompt(kwargs['messages']),
+            'prompt': self._messages2prompt(messages),
             'stream': False
         }
-        return self.parse_response(self._query_model(payload)) 
+        return self.parse_response(self._query_model(payload), dataset) 
+        
 
     def safe_query_model(self, prompt, end_tokens=['`'], max_tokens=100):
         payload = {
