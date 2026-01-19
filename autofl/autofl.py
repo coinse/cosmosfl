@@ -246,6 +246,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--model', default='llama3')
     parser.add_argument('-e', '--endpoint', default='http://localhost:11434/api/generate')
+    parser.add_argument('-d', '--dataset', default='defects4j', choices=['defects4j', 'bugsinpy'])
     parser.add_argument('-b', '--bug_name', default='Chart_1')
     parser.add_argument('-o', '--out', default='test.json')
     parser.add_argument('-p', '--prompt', default='prompts/system_msg_expbug_with_funcs_d4j.txt')
@@ -261,7 +262,7 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action="store_true")
     args = parser.parse_args()
 
-    if self.engine == 'ollama':
+    if args.engine == 'ollama':
         assert args.endpoint != None
         engine = llm_utils.OllamaEngine(args.endpoint, args.model)
     else:
