@@ -3,10 +3,8 @@ import requests
 from abc import ABC
 import json
 
-class OllamaEngine(ABC):
-    def __init__(self, endpoint, model):
-        self._base_url = endpoint
-        self._model = model
+class TextGenerationEngine(ABC):
+    def __init__(self):
         self._query_costs = list()
 
     def _funcCall2str(self, function_call):
@@ -68,6 +66,44 @@ class OllamaEngine(ABC):
             return response_obj
 
     def _extract_costs(self, response):
+        pass
+
+    def _query_model(self, payload):
+        for _ in range(5):
+            try:
+                json_payload = json.dumps(payload)
+                headers = {'Content-Type': 'application/json'}
+                response = json.loads(requests.post(self._base_url, data=json_payload, headers=headers).text)
+                self._extract_costs(response)
+                return response['response']
+            except Exception as e:
+                save_err = e
+                if "The server had an error processing your request." in str(e):
+                    time.sleep(1)
+                else:
+                    break
+        raise save_err
+
+    def get_LLM_response(self, messages, dataset):
+        pass
+        
+    def safe_query_model(self, prompt, end_tokens=['`'], max_tokens=100):
+        pass
+
+    def clear_cost_history(self):
+        self._query_costs.clear()
+
+    def get_cost_history(self):
+        return self._query_costs
+
+class OllamaEngine(TextGenerationEngine):
+    def __init__(self, endpoint, model):
+        super().__init__()
+        self._base_url = endpoint
+        self._model = model
+        self._query_costs = list()
+
+    def _extract_costs(self, response):
         self._query_costs.append({
             key: response[key]
             for key in ['total_duration', 'load_duration', 'prompt_eval_count', 'prompt_eval_duration', 'eval_count', 'eval_duration']
@@ -107,9 +143,3 @@ class OllamaEngine(ABC):
             'stream': False
         }
         return self._query_model(payload)
-
-    def clear_cost_history(self):
-        self._query_costs.clear()
-
-    def get_cost_history(self):
-        return self._query_costs
