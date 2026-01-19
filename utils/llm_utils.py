@@ -1,7 +1,10 @@
 import time
 import requests
-from abc import ABC
 import json
+import torch
+
+from abc import ABC
+from guidance import models, gen
 
 class TextGenerationEngine(ABC):
     def __init__(self):
@@ -56,7 +59,6 @@ class TextGenerationEngine(ABC):
                 }
             }}]}
 
-                
             return response_obj
         else:
             response_obj = {'choices': [{"message": {
@@ -65,31 +67,12 @@ class TextGenerationEngine(ABC):
             }}]}
             return response_obj
 
-    def _extract_costs(self, response):
-        pass
-
     def _query_model(self, payload):
-        for _ in range(5):
-            try:
-                json_payload = json.dumps(payload)
-                headers = {'Content-Type': 'application/json'}
-                response = json.loads(requests.post(self._base_url, data=json_payload, headers=headers).text)
-                self._extract_costs(response)
-                return response['response']
-            except Exception as e:
-                save_err = e
-                if "The server had an error processing your request." in str(e):
-                    time.sleep(1)
-                else:
-                    break
-        raise save_err
-
+        pass
+    
     def get_LLM_response(self, messages, dataset):
         pass
         
-    def safe_query_model(self, prompt, end_tokens=['`'], max_tokens=100):
-        pass
-
     def clear_cost_history(self):
         self._query_costs.clear()
 
@@ -101,7 +84,6 @@ class OllamaEngine(TextGenerationEngine):
         super().__init__()
         self._base_url = endpoint
         self._model = model
-        self._query_costs = list()
 
     def _extract_costs(self, response):
         self._query_costs.append({
@@ -134,12 +116,40 @@ class OllamaEngine(TextGenerationEngine):
         }
         return self.parse_response(self._query_model(payload), dataset) 
         
+class HFEngine(TextGenerationEngine):
+    def __init__(self, model):
+        super().__init__()
+        self._model = models.Transformers(model, torch_dtype=torch.bfloat16, trust_remote_code=True, device_map='auto')
 
-    def safe_query_model(self, prompt, end_tokens=['`'], max_tokens=100):
+    def _query_model(self, payload):
+        for _ in range(5):
+            try:
+                prompt = payload['prompt']
+                
+                lm = self._model + prompt
+                start_time = time.time()
+                lm += gen(name='response', temperature=1e-5)
+                gen_time = time.time() - start_time
+                generated_text = lm['response']
+                
+                self._query_costs.append({
+                    'generation_time': gen_time,
+                    'prompt_words': len(prompt.split()),
+                    'completion_words': len(generated_text.split())
+                })
+                
+                return generated_text
+            except Exception as e:
+                save_err = e
+                if "The server had an error processing your request." in str(e):
+                    time.sleep(1)
+                else:
+                    break
+        raise save_err
+        
+    def get_LLM_response(self, messages, dataset):
         payload = {
-            'model': self._model,
-            'prompt': prompt,
-            'options': {'num_predict': max_tokens, 'stop': end_tokens},
-            'stream': False
+            'prompt': self._messages2prompt(messages),
+            'stream': False,
         }
-        return self._query_model(payload)
+        return self.parse_response(self._query_model(payload), dataset)
