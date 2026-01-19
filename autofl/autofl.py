@@ -12,13 +12,13 @@ from utils import llm_utils
 
 RESULT_DIR = './results/'
 
-class AutoDebugger(llm_utils.OllamaEngine):
-    def __init__(self, endpoint, bug_name, model_type, system_file, test_offset=None,
+class AutoDebugger():
+    def __init__(self, engine, dataset, bug_name, system_file, test_offset=None,
             max_num_tests=None, allow_multi_predictions=False,
             summarize_messages=False, debug=False, **ri_kwargs):
-        super().__init__(endpoint, model_type)
+        self._engine = engine
         self._bug_name = bug_name
-        self._dataset = self._get_dataset(self._bug_name)
+        self._dataset = dataset
         self._ri = get_repo_interface(bug_name, **ri_kwargs)
         self._test_offset = test_offset
         self._max_num_tests = max_num_tests
@@ -26,60 +26,6 @@ class AutoDebugger(llm_utils.OllamaEngine):
         self._summarize_messages = summarize_messages
         self._system_file = system_file
         self._debug = debug
-
-    def _get_dataset(self, bug_name):
-        def _name_matches_proj_list(name, proj_list):
-            return any(name.lower() == proj_name.lower()
-                    for proj_name in proj_list)
-        d4j_projects = [
-            'Chart',
-            'Cli',
-            'Closure',
-            'Codec',
-            'Collections',
-            'Compress',
-            'Csv',
-            'Gson',
-            'JacksonCore',
-            'JacksonDatabind',
-            'JacksonXml',
-            'Jsoup',
-            'JxPath',
-            'Lang',
-            'Math',
-            'Mockito',
-            'Time',
-        ]
-
-        bip_projects = [
-            'ansible',
-            'cookiecutter',
-            'pysnooper',
-            'spacy',
-            'sanic',
-            'httpie',
-            'keras',
-            'matplotlib',
-            'thefuck',
-            'pandas',
-            'black',
-            'scrapy',
-            'luigi',
-            'fastapi',
-            'tornado',
-            'tqdm',
-            'youtube-dl',
-        ]
-
-        pid, vid = bug_name.split('_')
-        if _name_matches_proj_list(pid, d4j_projects):
-            return "defects4j"
-        elif _name_matches_proj_list(pid, bip_projects):
-            return "bugsinpy"
-        else:
-            raise ValueError(f"Could not match the project for {bug_name}")
-
-            
 
     def _replace_last_with_memo(self, memo):
         self.messages = self.messages[:-1] # replace recent two queries with memo
@@ -193,7 +139,7 @@ class AutoDebugger(llm_utils.OllamaEngine):
                 'content': 'NOTICE: You have reached the maximum budget for function calls. Do NOT generate any "Function call:". You must strictly provide the final diagnosis or explanation based on the information you have now.'
             })
 
-        response = self.get_LLM_response(
+        response = self._engine.get_LLM_response(
             messages=prompt_messages,
             dataset = self._dataset
         )
@@ -245,7 +191,7 @@ class AutoDebugger(llm_utils.OllamaEngine):
             'content': finishing_string
         }
         self._append_to_messages(querying_buggy_methods)
-        response = self.get_LLM_response(
+        response = self._engine.get_LLM_response(
             messages=self.messages,
             dataset=self._dataset
         )
@@ -292,6 +238,9 @@ class AutoDebugger(llm_utils.OllamaEngine):
         final_response = self.finish()
         grade_result = self.grade(final_response)
         return grade_result
+    
+    def get_cost_history(self):
+        return self._engine.get_cost_history()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -299,8 +248,9 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--endpoint', default='http://localhost:11434/api/generate')
     parser.add_argument('-b', '--bug_name', default='Chart_1')
     parser.add_argument('-o', '--out', default='test.json')
-    parser.add_argument('-p', '--prompt', default='prompts/system_msg_expbug_with_funcs.txt')
+    parser.add_argument('-p', '--prompt', default='prompts/system_msg_expbug_with_funcs_d4j.txt')
     parser.add_argument('-t', '--max_num_tests', default=None, type=int)
+    parser.add_argument('--engine', default='ollama', choices=['ollama', 'hf'])
     parser.add_argument('--test_offset', default=0, type=int)
     parser.add_argument('--max_budget', default=10, type=int)
     parser.add_argument('--measure_power_consumption', action="store_true")
@@ -311,7 +261,13 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action="store_true")
     args = parser.parse_args()
 
-    ad = AutoDebugger(args.endpoint, args.bug_name, args.model, args.prompt,
+    if self.engine == 'ollama':
+        assert args.endpoint != None
+        engine = llm_utils.OllamaEngine(args.endpoint, args.model)
+    else:
+        engine = llm_utils.HFEngine(args.model)
+
+    ad = AutoDebugger(engine, args.dataset, args.bug_name, args.prompt,
         test_offset=args.test_offset,
         max_num_tests=args.max_num_tests,
         allow_multi_predictions=args.allow_multi_predictions,
