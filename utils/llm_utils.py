@@ -5,6 +5,7 @@ import torch
 
 from abc import ABC
 from guidance import models, gen
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 class TextGenerationEngine(ABC):
     def __init__(self):
@@ -119,16 +120,70 @@ class OllamaEngine(TextGenerationEngine):
 class HFEngine(TextGenerationEngine):
     def __init__(self, model):
         super().__init__()
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            model,
+            trust_remote_code=True,
+        )
+
+        self._pipeline = pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=self._tokenizer,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
+            device_map='auto',
+        )
+
+    def _query_model(self, payload, max_tokens=128):
+        for _ in range(5):
+            try:
+                prompt = payload['prompt']
+                
+                start_time = time.time()
+                outputs = self._pipeline(
+                    prompt,
+                    max_new_tokens=max_tokens,
+                    temperature=1e-5,
+                    return_full_text=False,
+                )
+                gen_time = time.time() - start_time
+                generated_text = outputs[0]['generated_text']
+                
+                self._query_costs.append({
+                    'generation_time': gen_time,
+                    'prompt_words': len(self._tokenizer.encode(prompt)),
+                    'completion_words': len(self._tokenizer.encode(generated_text)),
+                })
+                
+                return generated_text
+            except Exception as e:
+                save_err = e
+                if "The server had an error processing your request." in str(e):
+                    time.sleep(1)
+                else:
+                    break
+        raise save_err
+        
+    def get_LLM_response(self, messages, dataset):
+        payload = {
+            'prompt': self._messages2prompt(messages),
+            'stream': False,
+        }
+        return self.parse_response(self._query_model(payload), dataset)
+
+class GuidanceEngine(TextGenerationEngine):
+    def __init__(self, model):
+        super().__init__()
         self._model = models.Transformers(model, torch_dtype=torch.bfloat16, trust_remote_code=True, device_map='auto')
 
-    def _query_model(self, payload):
+    def _query_model(self, payload, max_tokens=128):
         for _ in range(5):
             try:
                 prompt = payload['prompt']
                 
                 lm = self._model + prompt
                 start_time = time.time()
-                lm += gen(name='response', temperature=1e-5)
+                lm += gen(name='response', temperature=1e-5, max_tokens=128)
                 gen_time = time.time() - start_time
                 generated_text = lm['response']
                 
