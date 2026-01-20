@@ -193,7 +193,8 @@ class AutoDebugger():
         self._append_to_messages(querying_buggy_methods)
         response = self._engine.get_LLM_response(
             messages=self.messages,
-            dataset=self._dataset
+            dataset=self._dataset,
+            step=False,
         )
         response_message = response["choices"][0]["message"]
         self._append_to_messages(response_message)
