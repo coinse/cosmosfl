@@ -251,7 +251,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--out', default='test.json')
     parser.add_argument('-p', '--prompt', default='prompts/system_msg_expbug_with_funcs_d4j.txt')
     parser.add_argument('-t', '--max_num_tests', default=None, type=int)
-    parser.add_argument('--engine', default='ollama', choices=['ollama', 'hf'])
+    parser.add_argument('--engine', default='ollama', choices=['ollama', 'hf', 'guidance'])
     parser.add_argument('--test_offset', default=0, type=int)
     parser.add_argument('--max_budget', default=10, type=int)
     parser.add_argument('--measure_power_consumption', action="store_true")
@@ -265,8 +265,10 @@ if __name__ == '__main__':
     if args.engine == 'ollama':
         assert args.endpoint != None
         engine = llm_utils.OllamaEngine(args.endpoint, args.model)
-    else:
+    elif args.engine == 'hf':
         engine = llm_utils.HFEngine(args.model)
+    else:
+        engine = llm_utils.GuidanceEngine(args.model)
 
     ad = AutoDebugger(engine, args.dataset, args.bug_name, args.prompt,
         test_offset=args.test_offset,
