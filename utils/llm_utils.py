@@ -30,7 +30,7 @@ class TextGenerationEngine(ABC):
             true_response = response.split('Function call:')[1].strip()
             func_name = true_response.split('(')[0]
                 
-            arg_value = true_response.split('(')[1].removesuffix(')') if '(' in true_response else ''
+            arg_value = true_response[true_response.find('(') + 1:].removesuffix(')') if '(' in true_response else ''
             if '=' in arg_value:
                 arg_value = arg_value.split('=')[-1]
             arg_value = arg_value.strip('"').strip("'")
@@ -176,15 +176,17 @@ class GuidanceEngine(TextGenerationEngine):
         super().__init__()
         self._model = models.Transformers(model, torch_dtype=torch.bfloat16, trust_remote_code=True, device_map='auto')
 
-    def _query_model(self, payload, step, options, max_tokens=128):
+    def _query_model(self, payload, max_tokens=128, max_candidates=5):
         for _ in range(5):
             try:
                 prompt = payload['prompt']
+                options = payload['options']
                 
                 lm = self._model + prompt
                 start_time = time.time()
 
-                if step:
+                # FIXME: AutoFL logic should stay within autofl.py
+                if payload['step']:
                     lm += select(options, name='prefix')
                     generated_text = lm['prefix']
                     if generated_text == "Conclusion:":
@@ -192,9 +194,15 @@ class GuidanceEngine(TextGenerationEngine):
                         generated_text += lm['content']
                     gen_time = time.time() - start_time
                 else:
-                    lm += gen(name='response', temperature=1e-5, max_tokens=128)
+                    options.append('\n')
+                    suspicious_methods = []
+                    for _ in range(max_candidates):
+                        lm += select(options, name='method') + '\n'
+                        if lm['method'] == '\n':
+                            break
+                        suspicious_methods.append(lm['method'])
                     gen_time = time.time() - start_time
-                    generated_text = lm['response']
+                    generated_text = '\n'.join(list(set(suspicious_methods)))
                 
                 self._query_costs.append({
                     'generation_time': gen_time,
@@ -214,6 +222,8 @@ class GuidanceEngine(TextGenerationEngine):
     def get_LLM_response(self, messages, dataset, step=True, options=[]):
         payload = {
             'prompt': self._messages2prompt(messages),
+            'step': step,
+            'options': options,
             'stream': False,
         }
-        return self.parse_response(self._query_model(payload, step, options), dataset)
+        return self.parse_response(self._query_model(payload), dataset) 

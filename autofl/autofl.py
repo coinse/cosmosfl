@@ -220,6 +220,7 @@ class AutoDebugger():
             messages=self.messages,
             dataset=self._dataset,
             step=False,
+            options=self._ri.method_signatures,
         )
         response_message = response["choices"][0]["message"]
         self._append_to_messages(response_message)
