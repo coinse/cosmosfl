@@ -20,12 +20,33 @@ class AutoDebugger():
         self._bug_name = bug_name
         self._dataset = dataset
         self._ri = get_repo_interface(bug_name, **ri_kwargs)
+        self._valid_function_calls = self._construct_valid_function_calls_list()
         self._test_offset = test_offset
         self._max_num_tests = max_num_tests
         self._allow_multi_predictions = allow_multi_predictions
         self._summarize_messages = summarize_messages
         self._system_file = system_file
         self._debug = debug
+
+    def _construct_valid_function_calls_list(self):
+        assert self._dataset == 'defects4j' # for the ease of implementation
+        options = ["Conclusion:"]
+        
+        # Function 1
+        options.append("Function call: get_failing_tests_covered_classes()")
+        
+        # Function 2
+        classes = list(set([m["class_name"] for m in self._ri._method_lists])) # FIXME: bad access pattern - add another property to retrieve classes, consistently to both d4j & bip
+        for c in classes:
+            options.append(f"Function call: get_failing_tests_covered_methods_for_class({c})")
+        
+        # Function 3 and 4
+        methods = self._ri.method_signatures
+        for m in methods:
+            options.append(f"Function call: get_code_snippet({m})")
+            options.append(f"Function call: get_comments({m})")
+        
+        return options
 
     def _replace_last_with_memo(self, memo):
         self.messages = self.messages[:-1] # replace recent two queries with memo
@@ -132,16 +153,20 @@ class AutoDebugger():
             prompt_messages = self.messages + [{'role': 'system', 'content': 'Summarize the important content of the immediate prior message. If you are unsure of the solution, call a function afterwards. Be concise, but fully qualify all names.'}]
         else:
             prompt_messages = self.messages
-
+        
         if function_call_mode == "none":
             prompt_messages.append({
                 'role': 'system',
                 'content': 'NOTICE: You have reached the maximum budget for function calls. Do NOT generate any "Function call:". You must strictly provide the final diagnosis or explanation based on the information you have now.'
             })
+            options = ["Conclusion:"]
+        else:
+            options = self._valid_function_calls
 
         response = self._engine.get_LLM_response(
-            messages=prompt_messages,
-            dataset = self._dataset
+            messages = prompt_messages,
+            dataset = self._dataset,
+            options = options,
         )
 
         if self._summarize_messages:

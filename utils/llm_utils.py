@@ -71,7 +71,7 @@ class TextGenerationEngine(ABC):
     def _query_model(self, payload):
         pass
     
-    def get_LLM_response(self, messages, dataset, step=True):
+    def get_LLM_response(self, messages, dataset, step=True, options=[]):
         pass
         
     def clear_cost_history(self):
@@ -109,7 +109,7 @@ class OllamaEngine(TextGenerationEngine):
                     break
         raise save_err
 
-    def get_LLM_response(self, messages, dataset, step=True):
+    def get_LLM_response(self, messages, dataset, step=True, options=[]):
         payload = {
             'model': self._model,
             'prompt': self._messages2prompt(messages),
@@ -164,7 +164,7 @@ class HFEngine(TextGenerationEngine):
                     break
         raise save_err
         
-    def get_LLM_response(self, messages, dataset, step=True):
+    def get_LLM_response(self, messages, dataset, step=True, options=[]):
         payload = {
             'prompt': self._messages2prompt(messages),
             'stream': False,
@@ -176,7 +176,7 @@ class GuidanceEngine(TextGenerationEngine):
         super().__init__()
         self._model = models.Transformers(model, torch_dtype=torch.bfloat16, trust_remote_code=True, device_map='auto')
 
-    def _query_model(self, payload, step, max_tokens=128):
+    def _query_model(self, payload, step, options, max_tokens=128):
         for _ in range(5):
             try:
                 prompt = payload['prompt']
@@ -185,10 +185,12 @@ class GuidanceEngine(TextGenerationEngine):
                 start_time = time.time()
 
                 if step:
-                    lm += select(['Function call:', 'Conclusion:'], name='prefix')
-                    lm += gen(name='content', max_tokens=128, temperature=1e-5, stop='\n')
+                    lm += select(options, name='prefix')
+                    generated_text = lm['prefix']
+                    if generated_text == "Conclusion:":
+                        lm += gen(name='content', max_tokens=max_tokens, temperature=1e-5, stop='\n')
+                        generated_text += lm['content']
                     gen_time = time.time() - start_time
-                    generated_text = lm['prefix'] + lm['content']
                 else:
                     lm += gen(name='response', temperature=1e-5, max_tokens=128)
                     gen_time = time.time() - start_time
@@ -209,9 +211,9 @@ class GuidanceEngine(TextGenerationEngine):
                     break
         raise save_err
         
-    def get_LLM_response(self, messages, dataset, step=True):
+    def get_LLM_response(self, messages, dataset, step=True, options=[]):
         payload = {
             'prompt': self._messages2prompt(messages),
             'stream': False,
         }
-        return self.parse_response(self._query_model(payload, step), dataset)
+        return self.parse_response(self._query_model(payload, step, options), dataset)
