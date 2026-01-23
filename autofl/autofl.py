@@ -208,7 +208,7 @@ class AutoDebugger():
             return True
 
     def finish(self):
-        finishing_string = "Based on the available information, provide the signatures of the most likely culprit methods for the bug. Your answer will be processed automatically, so make sure to only answer with the accurate signatures of all likely culprits (in `ClassName.MethodName(ArgType1, ArgType2, ...)` format), without commentary (one per line). "
+        finishing_string = "Based on the available information, provide the signatures of the most likely culprit methods for the bug. Your answer will be processed automatically, so make sure to only answer with the accurate signatures of all likely culprits (in `ClassName.MethodName(ArgType1, ArgType2, ...)` format), without commentary (one per line). Specify that you are done with the generation by explicitly putting DONE at the end. "
         if not self._allow_multi_predictions:
             finishing_string = finishing_string.replace('signatures', 'signature')
             finishing_string = finishing_string.replace('methods', 'method')

@@ -62,6 +62,8 @@ class TextGenerationEngine(ABC):
 
             return response_obj
         else:
+            if "DONE" in response:
+                response = response[:response.find("DONE")]
             response_obj = {'choices': [{"message": {
                 'role': "assistant",
                 "content": response,
@@ -196,11 +198,11 @@ class GuidanceEngine(TextGenerationEngine):
                         generated_text += lm['content']
                     gen_time = time.time() - start_time
                 else:
-                    options.append('\n')
+                    options.append('DONE')
                     suspicious_methods = []
                     for _ in range(max_candidates):
                         lm += select(options, name='method') + '\n'
-                        if lm['method'] == '\n':
+                        if lm['method'] == 'DONE':
                             break
                         suspicious_methods.append(lm['method'])
                     gen_time = time.time() - start_time
