@@ -15,7 +15,7 @@ RESULT_DIR = './results/'
 class AutoDebugger():
     def __init__(self, engine, dataset, bug_name, system_file, test_offset=None,
             max_num_tests=None, allow_multi_predictions=False,
-            summarize_messages=False, debug=False, **ri_kwargs):
+            summarize_messages=False, block_repetitions=False, debug=False, **ri_kwargs):
         self._engine = engine
         self._bug_name = bug_name
         self._dataset = dataset
@@ -26,6 +26,7 @@ class AutoDebugger():
         self._allow_multi_predictions = allow_multi_predictions
         self._summarize_messages = summarize_messages
         self._system_file = system_file
+        self._block_repetitions = block_repetitions 
         self._debug = debug
 
     def _construct_valid_function_calls_list(self):
@@ -163,11 +164,14 @@ class AutoDebugger():
         else:
             options = self._valid_function_calls
 
-        response = self._engine.get_LLM_response(
+        response, unparsed_response = self._engine.get_LLM_response(
             messages = prompt_messages,
             dataset = self._dataset,
             options = options,
         )
+
+        if self._block_repetitions and unparsed_response in self._valid_function_calls: 
+            self._valid_function_calls.remove(unparsed_response)
 
         if self._summarize_messages:
             llm_summary = response['choices'][0]['message']['content']
@@ -216,7 +220,7 @@ class AutoDebugger():
             'content': finishing_string
         }
         self._append_to_messages(querying_buggy_methods)
-        response = self._engine.get_LLM_response(
+        response, unparsed_response = self._engine.get_LLM_response(
             messages=self.messages,
             dataset=self._dataset,
             step=False,
@@ -284,6 +288,7 @@ if __name__ == '__main__':
     parser.add_argument('--measure_power_consumption', action="store_true")
     parser.add_argument('--allow_multi_predictions', action="store_true")
     parser.add_argument('--summarize_messages', action="store_true")
+    parser.add_argument('--block_repetitions', action="store_true")
     parser.add_argument('--show_line_number', action="store_true")
     parser.add_argument('--postprocess_test_snippet', action="store_true")
     parser.add_argument('--debug', action="store_true")
@@ -297,6 +302,9 @@ if __name__ == '__main__':
     else:
         engine = llm_utils.GuidanceEngine(args.model)
 
+    if args.block_repetitions:
+        assert args.engine == 'guidance'
+
     ad = AutoDebugger(engine, args.dataset, args.bug_name, args.prompt,
         test_offset=args.test_offset,
         max_num_tests=args.max_num_tests,
@@ -304,6 +312,7 @@ if __name__ == '__main__':
         summarize_messages=args.summarize_messages,
         show_line_number=args.show_line_number,
         postprocess_test_snippet=args.postprocess_test_snippet,
+        block_repetitions=args.block_repetitions,
         debug=args.debug
     )
 

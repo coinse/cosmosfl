@@ -115,7 +115,8 @@ class OllamaEngine(TextGenerationEngine):
             'prompt': self._messages2prompt(messages),
             'stream': False
         }
-        return self.parse_response(self._query_model(payload), dataset) 
+        generated_text = self._query_model(payload)
+        return self.parse_response(generated_text, dataset), generated_text 
         
 class HFEngine(TextGenerationEngine):
     def __init__(self, model):
@@ -169,7 +170,8 @@ class HFEngine(TextGenerationEngine):
             'prompt': self._messages2prompt(messages),
             'stream': False,
         }
-        return self.parse_response(self._query_model(payload), dataset)
+        generated_text = self._query_model(payload)
+        return self.parse_response(generated_text, dataset), generated_text 
 
 class GuidanceEngine(TextGenerationEngine):
     def __init__(self, model):
@@ -226,4 +228,5 @@ class GuidanceEngine(TextGenerationEngine):
             'options': options,
             'stream': False,
         }
-        return self.parse_response(self._query_model(payload), dataset) 
+        generated_text = self._query_model(payload)
+        return self.parse_response(generated_text, dataset), generated_text 
