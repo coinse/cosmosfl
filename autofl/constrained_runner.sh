@@ -35,6 +35,6 @@ for bugname in $bug_list; do
         cmd="python autofl.py -m ${MODEL} --engine ${ENGINE} -b ${bugname} -p ${PROMPT_FILE} -o ${save_file} --max_budget ${BUDGET} --max_num_tests ${NUM_TESTS} --show_line_number --postprocess_test_snippet --allow_multi_predictions --test_offset 0 ${BLOCK_FLAG}" 
         # measure_power_consumption option only works when there are both pynvml module and GPU(s), disable otherwise
         echo ${cmd}
-        ${cmd}
+        timeout 1m ${cmd}
     fi
 done
