@@ -29,6 +29,8 @@ def count_function_calls_by_step(calls_by_step, messages):
             index += 1 
 
 def count_failing_and_total_calls(failing_calls, total_calls, messages):
+    total = 0
+    fail = 0
     for i in range(len(messages) - 1):
         m = messages[i]
         next_m = messages[i + 1]
@@ -40,7 +42,10 @@ def count_failing_and_total_calls(failing_calls, total_calls, messages):
                 failing_calls[m['function_call']['name']] = 0
             if 'error_message' in next_m['content']:
                 failing_calls[m['function_call']['name']] += 1
-            total_calls[m['function_call']['name']] += 1 
+                fail += 1
+            total_calls[m['function_call']['name']] += 1
+            total += 1
+    return total, fail 
 
 def function_call_to_str(function_call):
     return function_call['name'] + function_call['arguments']
@@ -56,8 +61,16 @@ def count_repeated_calls(repeated_calls, messages, is_found):
                 previous_calls[function_call_to_str(m['function_call'])] = 0
             previous_calls[function_call_to_str(m['function_call'])] += 1
     repeated_calls[is_found].append(sum([count - 1 for count in previous_calls.values()]) / sum(previous_calls.values()))
+    return sum([count - 1 for count in previous_calls.values()])
 
-def analyze_function_calls(result_dirs, project=None):
+def analyze_patterns(result_dirs, project=None):
+    execution_time = []
+    num_steps = []
+    num_suspicious_methods = []
+    num_total = []
+    num_fail = []
+    num_repeat = []
+
     calls_by_step = {}
     total_calls = {}
     failing_calls = {}
@@ -76,17 +89,36 @@ def analyze_function_calls(result_dirs, project=None):
             fpath = os.path.join(result_dir, fname)
             with open(fpath, 'r') as f:
                 autofl_data = json.load(f)
-
+            
             valid_messages = autofl_data["messages"]
+            if isinstance(autofl_data['buggy_methods'], dict): # filter out invalid runs
+                execution_time.append(autofl_data['time_taken'])
+                num_steps.append(sum([1 for m in valid_messages if m['role'] == 'assistant']) - 1) # Exclude step 0 function call
+                final_message = valid_messages[-1]['content']
+                num_suspicious_methods.append(len(final_message.splitlines()) if final_message else 0)
+
             count_function_calls_by_step(calls_by_step, valid_messages)
-            count_failing_and_total_calls(failing_calls, total_calls, valid_messages)
-            count_repeated_calls(repeated_calls, valid_messages, is_found(autofl_data))
+            total, fail = count_failing_and_total_calls(failing_calls, total_calls, valid_messages)
+            repeat = count_repeated_calls(repeated_calls, valid_messages, is_found(autofl_data))
+
+            num_total.append(total)
+            num_fail.append(fail)
+            num_repeat.append(repeat)
 
     repeated_calls['num_found'] = len(repeated_calls[True])
     repeated_calls['mean_of_found'] = sum(repeated_calls[True]) / len(repeated_calls[True])
     repeated_calls['num_unfound'] = len(repeated_calls[False])
     repeated_calls['mean_of_unfound'] = sum(repeated_calls[False]) / len(repeated_calls[False])
- 
+
+
+    print(f"Valid Runs: {len(execution_time)}")
+    print(f"Suspicious methods count statistics: {np.mean(num_suspicious_methods):.2f} ({np.std(num_suspicious_methods):.2f})")
+    print(f"Execution time statistics: {np.mean(execution_time):.2f} ({np.std(execution_time):.2f})")
+    print(f"Total call statistics: {np.mean(num_total):.2f} ({np.std(num_total):.2f})")
+    print(f"Failed call statistics: {np.mean(num_fail):.2f} ({np.std(num_fail):.2f})")
+    print(f"Repeated call statistics: {np.mean(num_repeat):.2f} ({np.std(num_repeat):.2f})")
+    print(f"Step count statistics: {np.mean(num_steps):.2f} ({np.std(num_steps):.2f})")
+
     return calls_by_step, total_calls, failing_calls, repeated_calls
 
 def plot_call_distribution(data, total_runs, path):
@@ -156,10 +188,11 @@ if __name__ == '__main__':
     parser.add_argument('--project', '-p', type=str, default=None)
     args = parser.parse_args()
 
-    calls_by_step, total, failing, repeated = analyze_function_calls(args.result_dirs, args.project)
-    total_runs = calls_by_step[list(calls_by_step.keys())[0]][0]
-    plot_call_distribution(calls_by_step, total_runs, f'{args.output}_distribution.png')
-    plot_failing_calls(total, failing, total_runs, f'{args.output}_failing_rate.png')
+    calls_by_step, total, failing, repeated = analyze_patterns(args.result_dirs, args.project)
 
-    with open(f'{args.output}.json', "w") as f:
-        json.dump({'total': total, 'failing': failing, 'steps': calls_by_step, 'repetition': repeated}, f, indent=4)
+    total_runs = calls_by_step[list(calls_by_step.keys())[0]][0]
+    # plot_call_distribution(calls_by_step, total_runs, f'{args.output}_distribution.png')
+    # plot_failing_calls(total, failing, total_runs, f'{args.output}_failing_rate.png')
+
+    # with open(f'{args.output}.json', "w") as f:
+    #     json.dump({'total': total, 'failing': failing, 'steps': calls_by_step, 'repetition': repeated}, f, indent=4)
