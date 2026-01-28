@@ -106,9 +106,9 @@ def analyze_patterns(result_dirs, project=None):
             num_repeat.append(repeat)
 
     repeated_calls['num_found'] = len(repeated_calls[True])
-    repeated_calls['mean_of_found'] = sum(repeated_calls[True]) / len(repeated_calls[True])
+    repeated_calls['mean_of_found'] = sum(repeated_calls[True]) / len(repeated_calls[True]) if len(repeated_calls[True]) else 0.0
     repeated_calls['num_unfound'] = len(repeated_calls[False])
-    repeated_calls['mean_of_unfound'] = sum(repeated_calls[False]) / len(repeated_calls[False])
+    repeated_calls['mean_of_unfound'] = sum(repeated_calls[False]) / len(repeated_calls[False]) if len(repeated_calls[False]) else 0.0
 
 
     print(f"Valid Runs: {len(execution_time)}")
