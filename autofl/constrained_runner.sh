@@ -22,7 +22,7 @@ NUM_TESTS="1"
 trap 'echo interrupted; exit 1' INT
 
 label="${LABEL_PREFIX}"
-save_dir="results/constrained_autofl/${label}/${MODEL}"
+save_dir="results/constrained_autofl_${DATASET}/${label}/${MODEL}"
 mkdir -p "${save_dir}"
 bug_list=$(ls -d ${DATA_DIR}/*/ | xargs -n1 basename)
 for bugname in $bug_list; do
