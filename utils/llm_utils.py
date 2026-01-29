@@ -31,9 +31,11 @@ class TextGenerationEngine(ABC):
             func_name = true_response.split('(')[0]
                 
             arg_value = true_response[true_response.find('(') + 1:].removesuffix(')') if '(' in true_response else ''
-            if '=' in arg_value:
-                arg_value = arg_value.split('=')[-1]
-            arg_value = arg_value.strip('"').strip("'")
+            # FIXME: problematic for BIP functions where their full names contain '='
+            # if '=' in arg_value:
+            #     arg_value = arg_value.split('=')[-1]
+            # arg_value = arg_value.strip('"').strip("'") 
+            
             if dataset == 'defects4j':
                 if func_name == 'get_failing_tests_covered_methods_for_class':
                     args_dict = {'class_name': arg_value}

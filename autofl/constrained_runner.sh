@@ -14,7 +14,12 @@ if [ -n "$BLOCK_REPETITIONS" ]; then
     BLOCK_FLAG="--block_repetitions"
 fi
 
-PROMPT_FILE="prompts/system_msg_expbug_with_funcs_d4j.txt"
+if [ "$DATASET" = "bugsinpy" ]; then
+    PROMPT_FILE="prompts/system_msg_expbug_with_funcs_bip.txt"
+else
+    PROMPT_FILE="prompts/system_msg_expbug_with_funcs_d4j.txt"
+fi
+
 DATA_DIR=./data/${DATASET}/
 BUDGET="10"
 NUM_TESTS="1"
@@ -32,7 +37,7 @@ for bugname in $bug_list; do
         continue
     fi
     if [ -f "${DATA_DIR}/${bugname}/snippet.json" ]; then
-        cmd="python autofl.py -m ${MODEL} --engine ${ENGINE} -b ${bugname} -p ${PROMPT_FILE} -o ${save_file} --max_budget ${BUDGET} --max_num_tests ${NUM_TESTS} --show_line_number --postprocess_test_snippet --allow_multi_predictions --test_offset 0 ${BLOCK_FLAG}" 
+        cmd="python autofl.py -m ${MODEL} --engine ${ENGINE} -d ${DATASET} -b ${bugname} -p ${PROMPT_FILE} -o ${save_file} --max_budget ${BUDGET} --max_num_tests ${NUM_TESTS} --show_line_number --postprocess_test_snippet --allow_multi_predictions --test_offset 0 ${BLOCK_FLAG}" 
         # measure_power_consumption option only works when there are both pynvml module and GPU(s), disable otherwise
         echo ${cmd}
         timeout 3m ${cmd}
