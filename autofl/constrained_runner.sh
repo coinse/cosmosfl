@@ -5,15 +5,15 @@ if [ -z  "$1" ]; then
 fi
 
 MODEL=$2
-ENGINE=$3
-BLOCK_REPETITIONS=$4
+DATASET=$3
+ENGINE=$4
+BLOCK_REPETITIONS=$5
 
 BLOCK_FLAG=""
 if [ -n "$BLOCK_REPETITIONS" ]; then
     BLOCK_FLAG="--block_repetitions"
 fi
 
-DATASET="defects4j"
 PROMPT_FILE="prompts/system_msg_expbug_with_funcs_d4j.txt"
 DATA_DIR=./data/${DATASET}/
 BUDGET="10"

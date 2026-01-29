@@ -5,6 +5,7 @@ import traceback
 import hashlib
 from copy import deepcopy
 from lib.repo_interface import get_repo_interface
+from lib.name_utils import drop_base_name
 
 import sys
 sys.path.insert(0, '..')
@@ -30,23 +31,42 @@ class AutoDebugger():
         self._debug = debug
 
     def _construct_valid_function_calls_list(self):
-        assert self._dataset == 'defects4j' # for the ease of implementation
         options = ["Conclusion:"]
         
-        # Function 1
-        options.append("Function call: get_failing_tests_covered_classes()")
-        
-        # Function 2
-        classes = list(set([m["class_name"] for m in self._ri._method_lists])) # FIXME: bad access pattern - add another property to retrieve classes, consistently to both d4j & bip
-        for c in classes:
-            options.append(f"Function call: get_failing_tests_covered_methods_for_class({c})")
-        
-        # Function 3 and 4
-        methods = self._ri.method_signatures
-        for m in methods:
-            options.append(f"Function call: get_code_snippet({m})")
-            options.append(f"Function call: get_comments({m})")
-        
+        if self._dataset == 'defects4j':
+            # Function 1
+            options.append("Function call: get_failing_tests_covered_classes()")
+            
+            # Function 2
+            classes = list(set([m["class_name"] for m in self._ri._method_lists])) # FIXME: bad access pattern - add another property to retrieve classes, consistently to both d4j & bip
+            for c in classes:
+                options.append(f"Function call: get_failing_tests_covered_methods_for_class({c})")
+            
+            # Function 3 and 4
+            methods = self._ri.method_signatures
+            for m in methods:
+                options.append(f"Function call: get_code_snippet({m})")
+                options.append(f"Function call: get_comments({m})")
+        else: # bip
+            # Function 1
+            options.append("Function call: get_covered_packages()")
+            
+            classes = set([m["class_name"] for m in self._ri._method_lists])
+            packages = list(set([drop_base_name(c) for c in classes]))
+            
+            # Function 2
+            for p in packages:
+                options.append(f"Function call: get_failing_tests_covered_classes({p})")
+            
+            # Function 3
+            for c in classes:
+                options.append(f"Function call: get_failing_tests_covered_methods_for_class({c})")
+                
+            # Function 4
+            methods = self._ri.method_signatures
+            for m in methods:
+                options.append(f"Function call: get_code_snippet({m})")
+
         return options
 
     def _replace_last_with_memo(self, memo):
@@ -220,7 +240,7 @@ class AutoDebugger():
             'content': finishing_string
         }
         self._append_to_messages(querying_buggy_methods)
-        response, unparsed_response = self._engine.get_LLM_response(
+        response, _ = self._engine.get_LLM_response(
             messages=self.messages,
             dataset=self._dataset,
             step=False,
@@ -229,7 +249,7 @@ class AutoDebugger():
         response_message = response["choices"][0]["message"]
         self._append_to_messages(response_message)
         if 'content' not in response_message or response_message['content'] == None:
-            return "Empty list genearted"
+            return "Empty list generated"
         return response_message['content'].strip()
 
     def grade(self, answer):
