@@ -8,10 +8,15 @@ MODEL=$2
 DATASET=$3
 ENGINE=$4
 BLOCK_REPETITIONS=$5
+FORCE_SELECTION=$6
 
-BLOCK_FLAG=""
-if [ -n "$BLOCK_REPETITIONS" ]; then
-    BLOCK_FLAG="--block_repetitions"
+OPTIONAL_FLAGS=""
+if [ "$BLOCK_REPETITIONS" = "true" ]; then
+    OPTIONAL_FLAGS="$OPTIONAL_FLAGS --block_repetitions"
+fi
+
+if [ "$FORCE_SELECTION" = "true" ]; then
+    OPTIONAL_FLAGS="$OPTIONAL_FLAGS --force_selection"
 fi
 
 if [ "$DATASET" = "bugsinpy" ]; then
@@ -37,7 +42,7 @@ for bugname in $bug_list; do
         continue
     fi
     if [ -f "${DATA_DIR}/${bugname}/snippet.json" ]; then
-        cmd="python autofl.py -m ${MODEL} --engine ${ENGINE} -d ${DATASET} -b ${bugname} -p ${PROMPT_FILE} -o ${save_file} --max_budget ${BUDGET} --max_num_tests ${NUM_TESTS} --show_line_number --postprocess_test_snippet --allow_multi_predictions --test_offset 0 ${BLOCK_FLAG}" 
+        cmd="python autofl.py -m ${MODEL} --engine ${ENGINE} -d ${DATASET} -b ${bugname} -p ${PROMPT_FILE} -o ${save_file} --max_budget ${BUDGET} --max_num_tests ${NUM_TESTS} --show_line_number --postprocess_test_snippet --allow_multi_predictions --test_offset 0 ${OPTIONAL_FLAGS}" 
         # measure_power_consumption option only works when there are both pynvml module and GPU(s), disable otherwise
         echo ${cmd}
         timeout 3m ${cmd}

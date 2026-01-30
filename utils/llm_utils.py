@@ -200,7 +200,6 @@ class GuidanceEngine(TextGenerationEngine):
                         generated_text += lm['content']
                     gen_time = time.time() - start_time
                 else:
-                    options.append('DONE')
                     suspicious_methods = []
                     for _ in range(max_candidates):
                         lm += select(options, name='method') + '\n'

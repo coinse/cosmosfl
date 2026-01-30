@@ -16,7 +16,7 @@ RESULT_DIR = './results/'
 class AutoDebugger():
     def __init__(self, engine, dataset, bug_name, system_file, test_offset=None,
             max_num_tests=None, allow_multi_predictions=False,
-            summarize_messages=False, block_repetitions=False, debug=False, **ri_kwargs):
+            summarize_messages=False, block_repetitions=False, force_selection=False, debug=False, **ri_kwargs):
         self._engine = engine
         self._bug_name = bug_name
         self._dataset = dataset
@@ -28,6 +28,7 @@ class AutoDebugger():
         self._summarize_messages = summarize_messages
         self._system_file = system_file
         self._block_repetitions = block_repetitions 
+        self._force_selection = force_selection 
         self._debug = debug
 
     def _construct_valid_function_calls_list(self):
@@ -228,7 +229,12 @@ class AutoDebugger():
             return True
 
     def finish(self):
-        finishing_string = "Based on the available information, provide the signatures of the most likely culprit methods for the bug. Your answer will be processed automatically, so make sure to only answer with the accurate signatures of all likely culprits (in `ClassName.MethodName(ArgType1, ArgType2, ...)` format), without commentary (one per line). Specify that you are done with the generation by explicitly putting DONE at the end. "
+        finishing_string = "Based on the available information, provide the signatures of the most likely culprit methods for the bug. Your answer will be processed automatically, so make sure to only answer with the accurate signatures of all likely culprits (in `ClassName.MethodName(ArgType1, ArgType2, ...)` format), without commentary (one per line). "
+       
+        candidate_methods = self._ri.method_signatures
+        if not self._force_selection:
+            candidate_methods.append("DONE")
+            finishing_string += "Specify that you are done with the generation by explicitly putting DONE at the end. "
         if not self._allow_multi_predictions:
             finishing_string = finishing_string.replace('signatures', 'signature')
             finishing_string = finishing_string.replace('methods', 'method')
@@ -244,7 +250,7 @@ class AutoDebugger():
             messages=self.messages,
             dataset=self._dataset,
             step=False,
-            options=self._ri.method_signatures,
+            options=candidate_methods,
         )
         response_message = response["choices"][0]["message"]
         self._append_to_messages(response_message)
@@ -309,6 +315,7 @@ if __name__ == '__main__':
     parser.add_argument('--allow_multi_predictions', action="store_true")
     parser.add_argument('--summarize_messages', action="store_true")
     parser.add_argument('--block_repetitions', action="store_true")
+    parser.add_argument('--force_selection', action="store_true")
     parser.add_argument('--show_line_number', action="store_true")
     parser.add_argument('--postprocess_test_snippet', action="store_true")
     parser.add_argument('--debug', action="store_true")
@@ -333,6 +340,7 @@ if __name__ == '__main__':
         show_line_number=args.show_line_number,
         postprocess_test_snippet=args.postprocess_test_snippet,
         block_repetitions=args.block_repetitions,
+        force_selection=args.force_selection,
         debug=args.debug
     )
 
