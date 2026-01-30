@@ -1,0 +1,567 @@
+{
+    "time_taken": 27.31995177268982,
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a debugging assistant. You will be presented with a failing test, and tools (functions) to access the source code of the system under test (SUT). Your task is to provide a step-by-step explanation of how the bug occurred, based on the failing test and the information you retrieved using tools about the SUT. You will be given 9 chances to interact with functions to gather relevant information. An example answer would look like follows.\n\n```\nThe test `testGenerateURLFragment` checks whether HTML entities such as `&quot;` are correctly escaped to their corresponding character by the `StandardToolTipTagFragmentGenerator.generateToolTipFragment` method. However, the test failure indicates that this is not the case. Following the execution path, we find that `StandardToolTipTagFragmentGenerator.generateToolTipFragment` is not escaping any HTML code; instead, it is using its input `toolTipText` as is. Consequently, un-escaped strings are being returned, which leads to the error demonstrated by the test.\n```\n\nYou have the following functions available to debug the case:\n\n1. get_failing_tests_covered_classes(package_name) - This function retrieves a set of classes covered by failing tests and groups them by their package names. Call example: get_failing_tests_covered_classes(\"my.package\")\n2. get_failing_tests_covered_methods_for_class(class_name) - This function takes a class_name as input and returns a list of method names covered by failing tests for the specified class in the program under test. Call example: get_failing_tests_covered_methods_for_class(\"my.favorite.Class\")\n3. get_code_snippet(method_signature) - This function takes a signature as input and returns the corresponding code snippet for the method or field. Call example: get_code_snippet(\"my.favorite.Class.Method(Args)\")\n\nTo make a function call, respond like the following:\n\n```\nFunction call: get_code_snippet(\"my.favorite.Class.Method(Args)\")\n```\n\nIf you are done and ready to generate a response, respond like the following:\n\n```\nConclusion: The test `testGenerateURLFragment` checks...\n```\n\nYou will keep these instructions in mind while proceeding.\n\nAfter providing this diagnosis, you will be prompted to suggest which methods would be the best locations to be fixed. The answers should be in the form of `ClassName.MethodName(ArgType1, ArgType2, ...)` without commentary (one per line), as your answer will be automatically processed before finally being presented to the user."
+        },
+        {
+            "role": "user",
+            "content": "The test `['test.test_YoutubeDL.TestFormatSelection.test_format_filtering(self)']` failed.\nThe test looks like:\n\n```python\n305 :     def test_format_filtering(self):\n306 :         formats = [\n307 :             {'format_id': 'A', 'filesize': 500, 'width': 1000},\n308 :             {'format_id': 'B', 'filesize': 1000, 'width': 500},\n309 :             {'format_id': 'C', 'filesize': 1000, 'width': 400},\n310 :             {'format_id': 'D', 'filesize': 2000, 'width': 600},\n311 :             {'format_id': 'E', 'filesize': 3000},\n312 :             {'format_id': 'F'},\n313 :             {'format_id': 'G', 'filesize': 1000000},\n314 :         ]\n315 :         for f in formats:\n316 :             f['url'] = 'http://_/'\n317 :             f['ext'] = 'unknown'\n318 :         info_dict = _make_result(formats)\n319 : \n320 :         ydl = YDL({'format': 'best[filesize<3000]'})\n321 :         ydl.process_ie_result(info_dict)\n322 :         downloaded = ydl.downloaded_info_dicts[0]\n323 :         self.assertEqual(downloaded['format_id'], 'D')\n325 :         ydl = YDL({'format': 'best[filesize<=3000]'})\n326 :         ydl.process_ie_result(info_dict)\n327 :         downloaded = ydl.downloaded_info_dicts[0]\n328 :         self.assertEqual(downloaded['format_id'], 'E')\n330 :         ydl = YDL({'format': 'best[filesize <= ? 3000]'})\n331 :         ydl.process_ie_result(info_dict)\n332 :         downloaded = ydl.downloaded_info_dicts[0]\n333 :         self.assertEqual(downloaded['format_id'], 'F')\n335 :         ydl = YDL({'format': 'best [filesize = 1000] [width>450]'})\n336 :         ydl.process_ie_result(info_dict)\n337 :         downloaded = ydl.downloaded_info_dicts[0]\n338 :         self.assertEqual(downloaded['format_id'], 'B')\n340 :         ydl = YDL({'format': 'best [filesize = 1000] [width!=450]'})\n341 :         ydl.process_ie_result(info_dict)\n342 :         downloaded = ydl.downloaded_info_dicts[0]\n343 :         self.assertEqual(downloaded['format_id'], 'C')\n345 :         ydl = YDL({'format': '[filesize>?1]'})\n346 :         ydl.process_ie_result(info_dict)\n347 :         downloaded = ydl.downloaded_info_dicts[0]\n348 :         self.assertEqual(downloaded['format_id'], 'G')\n350 :         ydl = YDL({'format': '[filesize<1M]'})\n351 :         ydl.process_ie_result(info_dict)\n352 :         downloaded = ydl.downloaded_info_dicts[0]\n353 :         self.assertEqual(downloaded['format_id'], 'E')\n355 :         ydl = YDL({'format': '[filesize<1MiB]'})\n356 :         ydl.process_ie_result(info_dict)\n357 :         downloaded = ydl.downloaded_info_dicts[0]\n358 :         self.assertEqual(downloaded['format_id'], 'G')\n360 :         ydl = YDL({'format': 'all[width>=400][width<=600]'})\n361 :         ydl.process_ie_result(info_dict)\n362 :         downloaded_ids = [info['format_id'] for info in ydl.downloaded_info_dicts]\n363 :         self.assertEqual(downloaded_ids, ['B', 'C', 'D'])\n365 :         ydl = YDL({'format': 'best[height<40]'})\n366 :         try:\n367 :             ydl.process_ie_result(info_dict) # error occurred here\n368 :         except ExtractorError:\n369 :             pass\n```\n\nIt failed with the following error message and call stack:\n\n```\nIndexError: list index out of range\nTraceback (most recent call last):\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/test/test_YoutubeDL.py\", line 367, in test_format_filtering\n    ydl.process_ie_result(info_dict)\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/youtube_dl/YoutubeDL.py\", line 713, in process_ie_result\n    return self.process_video_result(ie_result, download=download)\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/youtube_dl/YoutubeDL.py\", line 1272, in process_video_result\n    formats_to_download = list(format_selector(formats))\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/youtube_dl/YoutubeDL.py\", line 990, in selector_function\n    for format in f(formats):\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/youtube_dl/YoutubeDL.py\", line 1021, in selector_function\n    yield formats[format_idx]\n```\n\nStart by calling the `get_covered_packages` function."
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_covered_packages",
+                "arguments": "{}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_covered_packages",
+            "content": "[\"youtube_dl.downloader.common\", \"youtube_dl.extractor.ted\", \"youtube_dl.extractor.archiveorg\", \"youtube_dl.extractor.allocine\", \"youtube_dl.jsinterp\", \"youtube_dl.extractor.nytimes\", \"youtube_dl.downloader\", \"youtube_dl.extractor.common\", \"youtube_dl.extractor.lynda\", \"youtube_dl.extractor.sportbox\", \"youtube_dl.extractor.nrk\", \"youtube_dl.extractor.abc\", \"youtube_dl.postprocessor.common\", \"youtube_dl.extractor.atttechchannel\", \"youtube_dl.extractor.theplatform\", \"youtube_dl.extractor.viki\", \"youtube_dl.extractor.funnyordie\", \"youtube_dl.downloader.http\", \"youtube_dl.extractor.audiomack\", \"youtube_dl.postprocessor.metadatafromtitle\", \"youtube_dl.extractor.onionstudios\", \"youtube_dl.extractor.generic\", \"youtube_dl.extractor.nbc\", \"youtube_dl.extractor.fivemin\", \"youtube_dl.extractor.channel9\", \"youtube_dl.extractor.francetv\", \"youtube_dl.extractor.academicearth\", \"youtube_dl.extractor.pornhub\", \"youtube_dl.extractor.ceskatelevize\", \"youtube_dl.extractor.aol\", \"youtube_dl.aes\", \"youtube_dl.extractor.ard\", \"youtube_dl.extractor.defense\", \"youtube_dl.postprocessor.ffmpeg\", \"youtube_dl.extractor.addanime\", \"youtube_dl.extractor.ndr\", \"youtube_dl.extractor.globo\", \"youtube_dl.cache\", \"youtube_dl.extractor.mtv\", \"youtube_dl.extractor.vimeo\", \"youtube_dl\", \"youtube_dl.extractor.senateisvp\", \"youtube_dl.extractor.bandcamp\", \"youtube_dl.extractor.udemy\", \"youtube_dl.extractor.br\", \"youtube_dl.extractor.smotri\", \"youtube_dl.extractor.svt\", \"youtube_dl.extractor.adobetv\", \"youtube_dl.extractor.brightcove\", \"youtube_dl.extractor.walla\", \"youtube_dl.extractor.abc7news\", \"youtube_dl.utils\", \"youtube_dl.YoutubeDL\", \"youtube_dl.extractor.rutv\", \"youtube_dl.extractor\", \"youtube_dl.extractor.dailymotion\", \"youtube_dl.extractor.snagfilms\", \"youtube_dl.extractor.bbccouk\", \"youtube_dl.extractor.bliptv\", \"youtube_dl.extractor.youtube\", \"youtube_dl.extractor.npo\", \"youtube_dl.extractor.youporn\", \"youtube_dl.extractor.livestream\", \"youtube_dl.extractor.soundcloud\", \"youtube_dl.downloader.f4m\"]"
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_failing_tests_covered_classes",
+                "arguments": "{\"package_name\": \"youtube_dl\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_failing_tests_covered_classes",
+            "content": "[\"utils\", \"aes\"]"
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_failing_tests_covered_methods_for_class",
+                "arguments": "{\"class_name\": \"youtube_dl.utils\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_failing_tests_covered_methods_for_class",
+            "content": "[\".preferredencoding\", \".write_json_file\", \".find_xpath_attr\", \".xpath_with_ns\", \".xpath_text\", \".get_element_by_attribute\", \".clean_html\", \".sanitize_open\", \".timeconvert\", \".sanitize_filename\", \".replace_insane\", \".sanitize_path\", \".orderedSet\", \"._htmlentity_transform\", \".unescapeHTML\", \".encodeFilename\", \".encodeArgument\", \".make_HTTPS_handler\", \".bug_reports_message\", \"._create_http_connection\", \".parse_iso8601\", \".unified_strdate\", \".determine_ext\", \".date_from_str\", \".platform_name\", \".write_string\", \".bytes_to_intlist\", \".intlist_to_bytes\", \".get_filesystem_encoding\", \".shell_quote\", \".smuggle_url\", \".unsmuggle_url\", \".format_bytes\", \".parse_filesize\", \".fix_xml_ampersands\", \".remove_end\", \".url_basename\", \".int_or_none\", \".str_or_none\", \".str_to_int\", \".float_or_none\", \".parse_duration\", \".prepend_extension\", \".replace_extension\", \".get_exe_version\", \".detect_exe_version\", \".uppercase_escape\", \".lowercase_escape\", \".escape_rfc3986\", \".escape_url\", \".read_batch_urls\", \".fixup\", \".urlencode_postdata\", \".parse_xml\", \".strip_jsonp\", \".js_to_json\", \".fix_kv\", \".qualities\", \".q\", \".limit_length\", \".version_tuple\", \".ytdl_is_updateable\", \".args_to_str\", \".urlhandle_detect_ext\", \".age_restricted\", \".is_html\", \".determine_protocol\", \".render_table\", \"._match_one\", \".match_str\", \".match_filter_func\", \"._match_func\", \".parse_dfxp_time_expr\", \".srt_subtitles_timecode\", \".dfxp2srt\", \".parse_node\"]"
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\"signature\": \"youtube_dl.utils.write_json_file(obj, fn)\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\" 85 : def write_json_file(obj, fn):\\n 86 :     \\\"\\\"\\\" Encode obj as JSON and write it to fn, atomically if possible \\\"\\\"\\\"\\n 87 : \\n 88 :     fn = encodeFilename(fn)\\n 89 :     if sys.version_info < (3, 0) and sys.platform != 'win32':\\n 90 :         encoding = get_filesystem_encoding()\\n 91 :         # os.path.basename returns a bytes object, but NamedTemporaryFile\\n 92 :         # will fail if the filename contains non ascii characters unless we\\n 93 :         # use a unicode object\\n 94 :         path_basename = lambda f: os.path.basename(fn).decode(encoding)\\n 95 :         # the same for os.path.dirname\\n 96 :         path_dirname = lambda f: os.path.dirname(fn).decode(encoding)\\n 97 :     else:\\n 98 :         path_basename = os.path.basename\\n 99 :         path_dirname = os.path.dirname\\n100 : \\n101 :     args = {\\n102 :         'suffix': '.tmp',\\n103 :         'prefix': path_basename(fn) + '.',\\n104 :         'dir': path_dirname(fn),\\n105 :         'delete': False,\\n106 :     }\\n107 : \\n108 :     # In Python 2.x, json.dump expects a bytestream.\\n109 :     # In Python 3.x, it writes to a character stream\\n110 :     if sys.version_info < (3, 0):\\n111 :         args['mode'] = 'wb'\\n112 :     else:\\n113 :         args.update({\\n114 :             'mode': 'w',\\n115 :             'encoding': 'utf-8',\\n116 :         })\\n117 : \\n118 :     tf = tempfile.NamedTemporaryFile(**compat_kwargs(args))\\n119 : \\n120 :     try:\\n121 :         with tf:\\n122 :             json.dump(obj, tf)\\n123 :         if sys.platform == 'win32':\\n124 :             # Need to remove existing file on Windows, else os.rename raises\\n125 :             # WindowsError or FileExistsError.\\n126 :             try:\\n127 :                 os.unlink(fn)\\n128 :             except OSError:\\n129 :                 pass\\n130 :         os.rename(tf.name, fn)\\n131 :     except Exception:\\n132 :         try:\\n133 :             os.remove(tf.name)\\n134 :         except OSError:\\n135 :             pass\\n136 :         raise\""
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\"signature\": \"youtube_dl.utils.js_to_json(code)\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"1589 : def js_to_json(code):\\n1590 :     def fix_kv(m):\\n1591 :         v = m.group(0)\\n1592 :         if v in ('true', 'false', 'null'):\\n1593 :             return v\\n1594 :         if v.startswith('\\\"'):\\n1595 :             return v\\n1596 :         if v.startswith(\\\"'\\\"):\\n1597 :             v = v[1:-1]\\n1598 :             v = re.sub(r\\\"\\\\\\\\\\\\\\\\|\\\\\\\\'|\\\\\\\"\\\", lambda m: {\\n1599 :                 '\\\\\\\\\\\\\\\\': '\\\\\\\\\\\\\\\\',\\n1600 :                 \\\"\\\\\\\\'\\\": \\\"'\\\",\\n1601 :                 '\\\"': '\\\\\\\\\\\"',\\n1602 :             }[m.group(0)], v)\\n1603 :         return '\\\"%s\\\"' % v\\n1604 : \\n1605 :     res = re.sub(r'''(?x)\\n1606 :         \\\"(?:[^\\\"\\\\\\\\]*(?:\\\\\\\\\\\\\\\\|\\\\\\\\['\\\"nu]))*[^\\\"\\\\\\\\]*\\\"|\\n1607 :         '(?:[^'\\\\\\\\]*(?:\\\\\\\\\\\\\\\\|\\\\\\\\['\\\"nu]))*[^'\\\\\\\\]*'|\\n1608 :         [a-zA-Z_][.a-zA-Z_0-9]*\\n1609 :         ''', fix_kv, code)\\n1610 :     res = re.sub(r',(\\\\s*[\\\\]}])', lambda m: m.group(1), res)\\n1611 :     return res\""
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\"signature\": \"youtube_dl.utils.encodeFilename(s, for_subprocess=False)\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"380 : def encodeFilename(s, for_subprocess=False):\\n381 :     \\\"\\\"\\\"\\n382 :     @param s The name of the file\\n383 :     \\\"\\\"\\\"\\n384 : \\n385 :     assert type(s) == compat_str\\n386 : \\n387 :     # Python 3 has a Unicode API\\n388 :     if sys.version_info >= (3, 0):\\n389 :         return s\\n390 : \\n391 :     # Pass '' directly to use Unicode APIs on Windows 2000 and up\\n392 :     # (Detecting Windows NT 4 is tricky because 'major >= 4' would\\n393 :     # match Windows 9x series as well. Besides, NT 4 is obsolete.)\\n394 :     if not for_subprocess and sys.platform == 'win32' and sys.getwindowsversion()[0] >= 5:\\n395 :         return s\\n396 : \\n397 :     return s.encode(get_subprocess_encoding(), 'ignore')\""
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\"signature\": \"youtube_dl.utils.encodeArgument(s)\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"411 : def encodeArgument(s):\\n412 :     if not isinstance(s, compat_str):\\n413 :         # Legacy code that uses byte strings\\n414 :         # Uncomment the following line after fixing all post processors\\n415 :         # assert False, 'Internal error: %r should be of type %r, is %r' % (s, compat_str, type(s))\\n416 :         s = s.decode('ascii')\\n417 :     return encodeFilename(s, True)\""
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\"signature\": \"youtube_dl.utils.detect_exe_version(output, version_re=None, unrecognized='present')\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"1385 : def detect_exe_version(output, version_re=None, unrecognized='present'):\\n1386 :     assert isinstance(output, compat_str)\\n1387 :     if version_re is None:\\n1388 :         version_re = r'version\\\\s+([-0-9._a-zA-Z]+)'\\n1389 :     m = re.search(version_re, output)\\n1390 :     if m:\\n1391 :         return m.group(1)\\n1392 :     else:\\n1393 :         return unrecognized\""
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\"signature\": \"youtube_dl.utils.write_string(s, out=None, encoding=None)\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"976 : def write_string(s, out=None, encoding=None):\\n977 :     if out is None:\\n978 :         out = sys.stderr\\n979 :     assert type(s) == compat_str\\n980 : \\n981 :     if sys.platform == 'win32' and encoding is None and hasattr(out, 'fileno'):\\n982 :         if _windows_write_string(s, out):\\n983 :             return\\n984 : \\n985 :     if ('b' in getattr(out, 'mode', '') or\\n986 :             sys.version_info[0] < 3):  # Python 2 lies about mode of sys.stderr\\n987 :         byt = s.encode(encoding or preferredencoding(), 'ignore')\\n988 :         out.write(byt)\\n989 :     elif hasattr(out, 'buffer'):\\n990 :         enc = encoding or getattr(out, 'encoding', None) or preferredencoding()\\n991 :         byt = s.encode(enc, 'ignore')\\n992 :         out.buffer.write(byt)\\n993 :     else:\\n994 :         out.write(s)\\n995 :     out.flush()\""
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\"signature\": \"youtube_dl.utils.preferredencoding()\"}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"70 : def preferredencoding():\\n71 :     \\\"\\\"\\\"Get preferred encoding.\\n72 : \\n73 :     Returns the best encoding scheme for the system, based on\\n74 :     locale.getpreferredencoding() and some further tweaks.\\n75 :     \\\"\\\"\\\"\\n76 :     try:\\n77 :         pref = locale.getpreferredencoding()\\n78 :         'TEST'.encode(pref)\\n79 :     except Exception:\\n80 :         pref = 'UTF-8'\\n81 : \\n82 :     return pref\""
+        },
+        {
+            "role": "system",
+            "content": "NOTICE: You have reached the maximum budget for function calls. Do NOT generate any \"Function call:\". You must strictly provide the final diagnosis or explanation based on the information you have now."
+        },
+        {
+            "role": "assistant",
+            "content": "Conclusion: The test `test_format_filtering` checks whether the `YDL` class correctly filters formats based on the given format strings. However, the test failure indicates that the `YDL` class is not correctly handling the format strings. The error occurred in the `process_ie_result` method, which is called when processing the IE result. The error is caused by an `IndexError` in the `selector_function` method, which is used to select the formats to download. The `selector_function` method is called with an empty list of formats, which causes the `IndexError`. This is because the `YDL` class is"
+        },
+        {
+            "role": "user",
+            "content": "Based on the available information, provide the signatures of the most likely culprit methods for the bug. Your answer will be processed automatically, so make sure to only answer with the accurate signatures of all likely culprits (in `ClassName.MethodName(ArgType1, ArgType2, ...)` format), without commentary (one per line). Specify that you are done with the generation by explicitly putting DONE at the end. "
+        },
+        {
+            "role": "assistant",
+            "content": ""
+        }
+    ],
+    "interaction_records": {
+        "step_histories": [
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4"
+                ],
+                "response_message": "m5"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6"
+                ],
+                "response_message": "m7"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8"
+                ],
+                "response_message": "m9"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10"
+                ],
+                "response_message": "m11"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10",
+                    "m11",
+                    "m12"
+                ],
+                "response_message": "m13"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10",
+                    "m11",
+                    "m12",
+                    "m13",
+                    "m14"
+                ],
+                "response_message": "m15"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10",
+                    "m11",
+                    "m12",
+                    "m13",
+                    "m14",
+                    "m15",
+                    "m16"
+                ],
+                "response_message": "m17"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10",
+                    "m11",
+                    "m12",
+                    "m13",
+                    "m14",
+                    "m15",
+                    "m16",
+                    "m17",
+                    "m18"
+                ],
+                "response_message": "m19"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10",
+                    "m11",
+                    "m12",
+                    "m13",
+                    "m14",
+                    "m15",
+                    "m16",
+                    "m17",
+                    "m18",
+                    "m19",
+                    "m20"
+                ],
+                "response_message": "m21"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10",
+                    "m11",
+                    "m12",
+                    "m13",
+                    "m14",
+                    "m15",
+                    "m16",
+                    "m17",
+                    "m18",
+                    "m19",
+                    "m20",
+                    "m21",
+                    "m22",
+                    "m23"
+                ],
+                "response_message": "m24"
+            }
+        ],
+        "mid_to_message": {
+            "m1": {
+                "role": "system",
+                "content": "You are a debugging assistant. You will be presented with a failing test, and tools (functions) to access the source code of the system under test (SUT). Your task is to provide a step-by-step explanation of how the bug occurred, based on the failing test and the information you retrieved using tools about the SUT. You will be given 9 chances to interact with functions to gather relevant information. An example answer would look like follows.\n\n```\nThe test `testGenerateURLFragment` checks whether HTML entities such as `&quot;` are correctly escaped to their corresponding character by the `StandardToolTipTagFragmentGenerator.generateToolTipFragment` method. However, the test failure indicates that this is not the case. Following the execution path, we find that `StandardToolTipTagFragmentGenerator.generateToolTipFragment` is not escaping any HTML code; instead, it is using its input `toolTipText` as is. Consequently, un-escaped strings are being returned, which leads to the error demonstrated by the test.\n```\n\nYou have the following functions available to debug the case:\n\n1. get_failing_tests_covered_classes(package_name) - This function retrieves a set of classes covered by failing tests and groups them by their package names. Call example: get_failing_tests_covered_classes(\"my.package\")\n2. get_failing_tests_covered_methods_for_class(class_name) - This function takes a class_name as input and returns a list of method names covered by failing tests for the specified class in the program under test. Call example: get_failing_tests_covered_methods_for_class(\"my.favorite.Class\")\n3. get_code_snippet(method_signature) - This function takes a signature as input and returns the corresponding code snippet for the method or field. Call example: get_code_snippet(\"my.favorite.Class.Method(Args)\")\n\nTo make a function call, respond like the following:\n\n```\nFunction call: get_code_snippet(\"my.favorite.Class.Method(Args)\")\n```\n\nIf you are done and ready to generate a response, respond like the following:\n\n```\nConclusion: The test `testGenerateURLFragment` checks...\n```\n\nYou will keep these instructions in mind while proceeding.\n\nAfter providing this diagnosis, you will be prompted to suggest which methods would be the best locations to be fixed. The answers should be in the form of `ClassName.MethodName(ArgType1, ArgType2, ...)` without commentary (one per line), as your answer will be automatically processed before finally being presented to the user."
+            },
+            "m2": {
+                "role": "user",
+                "content": "The test `['test.test_YoutubeDL.TestFormatSelection.test_format_filtering(self)']` failed.\nThe test looks like:\n\n```python\n305 :     def test_format_filtering(self):\n306 :         formats = [\n307 :             {'format_id': 'A', 'filesize': 500, 'width': 1000},\n308 :             {'format_id': 'B', 'filesize': 1000, 'width': 500},\n309 :             {'format_id': 'C', 'filesize': 1000, 'width': 400},\n310 :             {'format_id': 'D', 'filesize': 2000, 'width': 600},\n311 :             {'format_id': 'E', 'filesize': 3000},\n312 :             {'format_id': 'F'},\n313 :             {'format_id': 'G', 'filesize': 1000000},\n314 :         ]\n315 :         for f in formats:\n316 :             f['url'] = 'http://_/'\n317 :             f['ext'] = 'unknown'\n318 :         info_dict = _make_result(formats)\n319 : \n320 :         ydl = YDL({'format': 'best[filesize<3000]'})\n321 :         ydl.process_ie_result(info_dict)\n322 :         downloaded = ydl.downloaded_info_dicts[0]\n323 :         self.assertEqual(downloaded['format_id'], 'D')\n325 :         ydl = YDL({'format': 'best[filesize<=3000]'})\n326 :         ydl.process_ie_result(info_dict)\n327 :         downloaded = ydl.downloaded_info_dicts[0]\n328 :         self.assertEqual(downloaded['format_id'], 'E')\n330 :         ydl = YDL({'format': 'best[filesize <= ? 3000]'})\n331 :         ydl.process_ie_result(info_dict)\n332 :         downloaded = ydl.downloaded_info_dicts[0]\n333 :         self.assertEqual(downloaded['format_id'], 'F')\n335 :         ydl = YDL({'format': 'best [filesize = 1000] [width>450]'})\n336 :         ydl.process_ie_result(info_dict)\n337 :         downloaded = ydl.downloaded_info_dicts[0]\n338 :         self.assertEqual(downloaded['format_id'], 'B')\n340 :         ydl = YDL({'format': 'best [filesize = 1000] [width!=450]'})\n341 :         ydl.process_ie_result(info_dict)\n342 :         downloaded = ydl.downloaded_info_dicts[0]\n343 :         self.assertEqual(downloaded['format_id'], 'C')\n345 :         ydl = YDL({'format': '[filesize>?1]'})\n346 :         ydl.process_ie_result(info_dict)\n347 :         downloaded = ydl.downloaded_info_dicts[0]\n348 :         self.assertEqual(downloaded['format_id'], 'G')\n350 :         ydl = YDL({'format': '[filesize<1M]'})\n351 :         ydl.process_ie_result(info_dict)\n352 :         downloaded = ydl.downloaded_info_dicts[0]\n353 :         self.assertEqual(downloaded['format_id'], 'E')\n355 :         ydl = YDL({'format': '[filesize<1MiB]'})\n356 :         ydl.process_ie_result(info_dict)\n357 :         downloaded = ydl.downloaded_info_dicts[0]\n358 :         self.assertEqual(downloaded['format_id'], 'G')\n360 :         ydl = YDL({'format': 'all[width>=400][width<=600]'})\n361 :         ydl.process_ie_result(info_dict)\n362 :         downloaded_ids = [info['format_id'] for info in ydl.downloaded_info_dicts]\n363 :         self.assertEqual(downloaded_ids, ['B', 'C', 'D'])\n365 :         ydl = YDL({'format': 'best[height<40]'})\n366 :         try:\n367 :             ydl.process_ie_result(info_dict) # error occurred here\n368 :         except ExtractorError:\n369 :             pass\n```\n\nIt failed with the following error message and call stack:\n\n```\nIndexError: list index out of range\nTraceback (most recent call last):\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/test/test_YoutubeDL.py\", line 367, in test_format_filtering\n    ydl.process_ie_result(info_dict)\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/youtube_dl/YoutubeDL.py\", line 713, in process_ie_result\n    return self.process_video_result(ie_result, download=download)\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/youtube_dl/YoutubeDL.py\", line 1272, in process_video_result\n    formats_to_download = list(format_selector(formats))\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/youtube_dl/YoutubeDL.py\", line 990, in selector_function\n    for format in f(formats):\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/youtube_dl/YoutubeDL.py\", line 1021, in selector_function\n    yield formats[format_idx]\n```\n\nStart by calling the `get_covered_packages` function."
+            },
+            "m3": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_covered_packages",
+                    "arguments": "{}"
+                }
+            },
+            "m4": {
+                "role": "function",
+                "name": "get_covered_packages",
+                "content": "[\"youtube_dl.downloader.common\", \"youtube_dl.extractor.ted\", \"youtube_dl.extractor.archiveorg\", \"youtube_dl.extractor.allocine\", \"youtube_dl.jsinterp\", \"youtube_dl.extractor.nytimes\", \"youtube_dl.downloader\", \"youtube_dl.extractor.common\", \"youtube_dl.extractor.lynda\", \"youtube_dl.extractor.sportbox\", \"youtube_dl.extractor.nrk\", \"youtube_dl.extractor.abc\", \"youtube_dl.postprocessor.common\", \"youtube_dl.extractor.atttechchannel\", \"youtube_dl.extractor.theplatform\", \"youtube_dl.extractor.viki\", \"youtube_dl.extractor.funnyordie\", \"youtube_dl.downloader.http\", \"youtube_dl.extractor.audiomack\", \"youtube_dl.postprocessor.metadatafromtitle\", \"youtube_dl.extractor.onionstudios\", \"youtube_dl.extractor.generic\", \"youtube_dl.extractor.nbc\", \"youtube_dl.extractor.fivemin\", \"youtube_dl.extractor.channel9\", \"youtube_dl.extractor.francetv\", \"youtube_dl.extractor.academicearth\", \"youtube_dl.extractor.pornhub\", \"youtube_dl.extractor.ceskatelevize\", \"youtube_dl.extractor.aol\", \"youtube_dl.aes\", \"youtube_dl.extractor.ard\", \"youtube_dl.extractor.defense\", \"youtube_dl.postprocessor.ffmpeg\", \"youtube_dl.extractor.addanime\", \"youtube_dl.extractor.ndr\", \"youtube_dl.extractor.globo\", \"youtube_dl.cache\", \"youtube_dl.extractor.mtv\", \"youtube_dl.extractor.vimeo\", \"youtube_dl\", \"youtube_dl.extractor.senateisvp\", \"youtube_dl.extractor.bandcamp\", \"youtube_dl.extractor.udemy\", \"youtube_dl.extractor.br\", \"youtube_dl.extractor.smotri\", \"youtube_dl.extractor.svt\", \"youtube_dl.extractor.adobetv\", \"youtube_dl.extractor.brightcove\", \"youtube_dl.extractor.walla\", \"youtube_dl.extractor.abc7news\", \"youtube_dl.utils\", \"youtube_dl.YoutubeDL\", \"youtube_dl.extractor.rutv\", \"youtube_dl.extractor\", \"youtube_dl.extractor.dailymotion\", \"youtube_dl.extractor.snagfilms\", \"youtube_dl.extractor.bbccouk\", \"youtube_dl.extractor.bliptv\", \"youtube_dl.extractor.youtube\", \"youtube_dl.extractor.npo\", \"youtube_dl.extractor.youporn\", \"youtube_dl.extractor.livestream\", \"youtube_dl.extractor.soundcloud\", \"youtube_dl.downloader.f4m\"]"
+            },
+            "m5": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_failing_tests_covered_classes",
+                    "arguments": "{\"package_name\": \"youtube_dl\"}"
+                }
+            },
+            "m6": {
+                "role": "function",
+                "name": "get_failing_tests_covered_classes",
+                "content": "[\"utils\", \"aes\"]"
+            },
+            "m7": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_failing_tests_covered_methods_for_class",
+                    "arguments": "{\"class_name\": \"youtube_dl.utils\"}"
+                }
+            },
+            "m8": {
+                "role": "function",
+                "name": "get_failing_tests_covered_methods_for_class",
+                "content": "[\".preferredencoding\", \".write_json_file\", \".find_xpath_attr\", \".xpath_with_ns\", \".xpath_text\", \".get_element_by_attribute\", \".clean_html\", \".sanitize_open\", \".timeconvert\", \".sanitize_filename\", \".replace_insane\", \".sanitize_path\", \".orderedSet\", \"._htmlentity_transform\", \".unescapeHTML\", \".encodeFilename\", \".encodeArgument\", \".make_HTTPS_handler\", \".bug_reports_message\", \"._create_http_connection\", \".parse_iso8601\", \".unified_strdate\", \".determine_ext\", \".date_from_str\", \".platform_name\", \".write_string\", \".bytes_to_intlist\", \".intlist_to_bytes\", \".get_filesystem_encoding\", \".shell_quote\", \".smuggle_url\", \".unsmuggle_url\", \".format_bytes\", \".parse_filesize\", \".fix_xml_ampersands\", \".remove_end\", \".url_basename\", \".int_or_none\", \".str_or_none\", \".str_to_int\", \".float_or_none\", \".parse_duration\", \".prepend_extension\", \".replace_extension\", \".get_exe_version\", \".detect_exe_version\", \".uppercase_escape\", \".lowercase_escape\", \".escape_rfc3986\", \".escape_url\", \".read_batch_urls\", \".fixup\", \".urlencode_postdata\", \".parse_xml\", \".strip_jsonp\", \".js_to_json\", \".fix_kv\", \".qualities\", \".q\", \".limit_length\", \".version_tuple\", \".ytdl_is_updateable\", \".args_to_str\", \".urlhandle_detect_ext\", \".age_restricted\", \".is_html\", \".determine_protocol\", \".render_table\", \"._match_one\", \".match_str\", \".match_filter_func\", \"._match_func\", \".parse_dfxp_time_expr\", \".srt_subtitles_timecode\", \".dfxp2srt\", \".parse_node\"]"
+            },
+            "m9": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\"signature\": \"youtube_dl.utils.write_json_file(obj, fn)\"}"
+                }
+            },
+            "m10": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\" 85 : def write_json_file(obj, fn):\\n 86 :     \\\"\\\"\\\" Encode obj as JSON and write it to fn, atomically if possible \\\"\\\"\\\"\\n 87 : \\n 88 :     fn = encodeFilename(fn)\\n 89 :     if sys.version_info < (3, 0) and sys.platform != 'win32':\\n 90 :         encoding = get_filesystem_encoding()\\n 91 :         # os.path.basename returns a bytes object, but NamedTemporaryFile\\n 92 :         # will fail if the filename contains non ascii characters unless we\\n 93 :         # use a unicode object\\n 94 :         path_basename = lambda f: os.path.basename(fn).decode(encoding)\\n 95 :         # the same for os.path.dirname\\n 96 :         path_dirname = lambda f: os.path.dirname(fn).decode(encoding)\\n 97 :     else:\\n 98 :         path_basename = os.path.basename\\n 99 :         path_dirname = os.path.dirname\\n100 : \\n101 :     args = {\\n102 :         'suffix': '.tmp',\\n103 :         'prefix': path_basename(fn) + '.',\\n104 :         'dir': path_dirname(fn),\\n105 :         'delete': False,\\n106 :     }\\n107 : \\n108 :     # In Python 2.x, json.dump expects a bytestream.\\n109 :     # In Python 3.x, it writes to a character stream\\n110 :     if sys.version_info < (3, 0):\\n111 :         args['mode'] = 'wb'\\n112 :     else:\\n113 :         args.update({\\n114 :             'mode': 'w',\\n115 :             'encoding': 'utf-8',\\n116 :         })\\n117 : \\n118 :     tf = tempfile.NamedTemporaryFile(**compat_kwargs(args))\\n119 : \\n120 :     try:\\n121 :         with tf:\\n122 :             json.dump(obj, tf)\\n123 :         if sys.platform == 'win32':\\n124 :             # Need to remove existing file on Windows, else os.rename raises\\n125 :             # WindowsError or FileExistsError.\\n126 :             try:\\n127 :                 os.unlink(fn)\\n128 :             except OSError:\\n129 :                 pass\\n130 :         os.rename(tf.name, fn)\\n131 :     except Exception:\\n132 :         try:\\n133 :             os.remove(tf.name)\\n134 :         except OSError:\\n135 :             pass\\n136 :         raise\""
+            },
+            "m11": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\"signature\": \"youtube_dl.utils.js_to_json(code)\"}"
+                }
+            },
+            "m12": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"1589 : def js_to_json(code):\\n1590 :     def fix_kv(m):\\n1591 :         v = m.group(0)\\n1592 :         if v in ('true', 'false', 'null'):\\n1593 :             return v\\n1594 :         if v.startswith('\\\"'):\\n1595 :             return v\\n1596 :         if v.startswith(\\\"'\\\"):\\n1597 :             v = v[1:-1]\\n1598 :             v = re.sub(r\\\"\\\\\\\\\\\\\\\\|\\\\\\\\'|\\\\\\\"\\\", lambda m: {\\n1599 :                 '\\\\\\\\\\\\\\\\': '\\\\\\\\\\\\\\\\',\\n1600 :                 \\\"\\\\\\\\'\\\": \\\"'\\\",\\n1601 :                 '\\\"': '\\\\\\\\\\\"',\\n1602 :             }[m.group(0)], v)\\n1603 :         return '\\\"%s\\\"' % v\\n1604 : \\n1605 :     res = re.sub(r'''(?x)\\n1606 :         \\\"(?:[^\\\"\\\\\\\\]*(?:\\\\\\\\\\\\\\\\|\\\\\\\\['\\\"nu]))*[^\\\"\\\\\\\\]*\\\"|\\n1607 :         '(?:[^'\\\\\\\\]*(?:\\\\\\\\\\\\\\\\|\\\\\\\\['\\\"nu]))*[^'\\\\\\\\]*'|\\n1608 :         [a-zA-Z_][.a-zA-Z_0-9]*\\n1609 :         ''', fix_kv, code)\\n1610 :     res = re.sub(r',(\\\\s*[\\\\]}])', lambda m: m.group(1), res)\\n1611 :     return res\""
+            },
+            "m13": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\"signature\": \"youtube_dl.utils.encodeFilename(s, for_subprocess=False)\"}"
+                }
+            },
+            "m14": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"380 : def encodeFilename(s, for_subprocess=False):\\n381 :     \\\"\\\"\\\"\\n382 :     @param s The name of the file\\n383 :     \\\"\\\"\\\"\\n384 : \\n385 :     assert type(s) == compat_str\\n386 : \\n387 :     # Python 3 has a Unicode API\\n388 :     if sys.version_info >= (3, 0):\\n389 :         return s\\n390 : \\n391 :     # Pass '' directly to use Unicode APIs on Windows 2000 and up\\n392 :     # (Detecting Windows NT 4 is tricky because 'major >= 4' would\\n393 :     # match Windows 9x series as well. Besides, NT 4 is obsolete.)\\n394 :     if not for_subprocess and sys.platform == 'win32' and sys.getwindowsversion()[0] >= 5:\\n395 :         return s\\n396 : \\n397 :     return s.encode(get_subprocess_encoding(), 'ignore')\""
+            },
+            "m15": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\"signature\": \"youtube_dl.utils.encodeArgument(s)\"}"
+                }
+            },
+            "m16": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"411 : def encodeArgument(s):\\n412 :     if not isinstance(s, compat_str):\\n413 :         # Legacy code that uses byte strings\\n414 :         # Uncomment the following line after fixing all post processors\\n415 :         # assert False, 'Internal error: %r should be of type %r, is %r' % (s, compat_str, type(s))\\n416 :         s = s.decode('ascii')\\n417 :     return encodeFilename(s, True)\""
+            },
+            "m17": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\"signature\": \"youtube_dl.utils.detect_exe_version(output, version_re=None, unrecognized='present')\"}"
+                }
+            },
+            "m18": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"1385 : def detect_exe_version(output, version_re=None, unrecognized='present'):\\n1386 :     assert isinstance(output, compat_str)\\n1387 :     if version_re is None:\\n1388 :         version_re = r'version\\\\s+([-0-9._a-zA-Z]+)'\\n1389 :     m = re.search(version_re, output)\\n1390 :     if m:\\n1391 :         return m.group(1)\\n1392 :     else:\\n1393 :         return unrecognized\""
+            },
+            "m19": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\"signature\": \"youtube_dl.utils.write_string(s, out=None, encoding=None)\"}"
+                }
+            },
+            "m20": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"976 : def write_string(s, out=None, encoding=None):\\n977 :     if out is None:\\n978 :         out = sys.stderr\\n979 :     assert type(s) == compat_str\\n980 : \\n981 :     if sys.platform == 'win32' and encoding is None and hasattr(out, 'fileno'):\\n982 :         if _windows_write_string(s, out):\\n983 :             return\\n984 : \\n985 :     if ('b' in getattr(out, 'mode', '') or\\n986 :             sys.version_info[0] < 3):  # Python 2 lies about mode of sys.stderr\\n987 :         byt = s.encode(encoding or preferredencoding(), 'ignore')\\n988 :         out.write(byt)\\n989 :     elif hasattr(out, 'buffer'):\\n990 :         enc = encoding or getattr(out, 'encoding', None) or preferredencoding()\\n991 :         byt = s.encode(enc, 'ignore')\\n992 :         out.buffer.write(byt)\\n993 :     else:\\n994 :         out.write(s)\\n995 :     out.flush()\""
+            },
+            "m21": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\"signature\": \"youtube_dl.utils.preferredencoding()\"}"
+                }
+            },
+            "m22": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"70 : def preferredencoding():\\n71 :     \\\"\\\"\\\"Get preferred encoding.\\n72 : \\n73 :     Returns the best encoding scheme for the system, based on\\n74 :     locale.getpreferredencoding() and some further tweaks.\\n75 :     \\\"\\\"\\\"\\n76 :     try:\\n77 :         pref = locale.getpreferredencoding()\\n78 :         'TEST'.encode(pref)\\n79 :     except Exception:\\n80 :         pref = 'UTF-8'\\n81 : \\n82 :     return pref\""
+            },
+            "m23": {
+                "role": "system",
+                "content": "NOTICE: You have reached the maximum budget for function calls. Do NOT generate any \"Function call:\". You must strictly provide the final diagnosis or explanation based on the information you have now."
+            },
+            "m24": {
+                "role": "assistant",
+                "content": "Conclusion: The test `test_format_filtering` checks whether the `YDL` class correctly filters formats based on the given format strings. However, the test failure indicates that the `YDL` class is not correctly handling the format strings. The error occurred in the `process_ie_result` method, which is called when processing the IE result. The error is caused by an `IndexError` in the `selector_function` method, which is used to select the formats to download. The `selector_function` method is called with an empty list of formats, which causes the `IndexError`. This is because the `YDL` class is"
+            }
+        }
+    },
+    "buggy_methods": {
+        "youtube_dl.YoutubeDL.YoutubeDL.build_format_selector(self, format_spec)": {
+            "is_found": false,
+            "matching_answer": []
+        },
+        "youtube_dl.YoutubeDL.YoutubeDL._build_selector_function(selector)": {
+            "is_found": false,
+            "matching_answer": []
+        },
+        "youtube_dl.YoutubeDL.YoutubeDL.selector_function(formats)": {
+            "is_found": false,
+            "matching_answer": []
+        },
+        "youtube_dl.YoutubeDL.TokenIterator.build_format_selector(self, format_spec)": {
+            "is_found": false,
+            "matching_answer": []
+        }
+    },
+    "query_costs": [
+        {
+            "generation_time": 0.37271571159362793,
+            "prompt_words": 773,
+            "completion_words": 3
+        },
+        {
+            "generation_time": 0.3216564655303955,
+            "prompt_words": 780,
+            "completion_words": 3
+        },
+        {
+            "generation_time": 0.5383403301239014,
+            "prompt_words": 861,
+            "completion_words": 4
+        },
+        {
+            "generation_time": 0.3188965320587158,
+            "prompt_words": 1108,
+            "completion_words": 3
+        },
+        {
+            "generation_time": 0.3774733543395996,
+            "prompt_words": 1198,
+            "completion_words": 4
+        },
+        {
+            "generation_time": 0.32456159591674805,
+            "prompt_words": 1310,
+            "completion_words": 3
+        },
+        {
+            "generation_time": 0.49486804008483887,
+            "prompt_words": 1369,
+            "completion_words": 5
+        },
+        {
+            "generation_time": 0.33403468132019043,
+            "prompt_words": 1411,
+            "completion_words": 5
+        },
+        {
+            "generation_time": 0.37725400924682617,
+            "prompt_words": 1516,
+            "completion_words": 3
+        },
+        {
+            "generation_time": 7.669047594070435,
+            "prompt_words": 1603,
+            "completion_words": 91
+        },
+        {
+            "generation_time": 0.14751267433166504,
+            "prompt_words": 1758,
+            "completion_words": 0
+        }
+    ]
+}
