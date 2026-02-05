@@ -125,9 +125,13 @@ class OllamaEngine(TextGenerationEngine):
 class HFEngine(TextGenerationEngine):
     def __init__(self, model):
         super().__init__()
+        trust_remote_code = True
+        if 'Phi-3' in model: # Refer to https://github.com/huggingface/transformers/issues/36071#issuecomment-2646424590
+            trust_remote_code = False
+
         self._tokenizer = AutoTokenizer.from_pretrained(
             model,
-            trust_remote_code=True,
+            trust_remote_code=trust_remote_code,
         )
 
         self._pipeline = pipeline(
@@ -135,7 +139,7 @@ class HFEngine(TextGenerationEngine):
             model=model,
             tokenizer=self._tokenizer,
             torch_dtype=torch.bfloat16,
-            trust_remote_code=True,
+            trust_remote_code=trust_remote_code,
             device_map='auto',
         )
 
