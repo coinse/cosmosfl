@@ -9,6 +9,7 @@ DATASET=$3
 ENGINE=$4
 BLOCK_REPETITIONS=$5
 FORCE_SELECTION=$6
+FORCE_TOOL_CALLS=$7
 
 OPTIONAL_FLAGS=""
 if [ "$BLOCK_REPETITIONS" = "true" ]; then
@@ -17,6 +18,10 @@ fi
 
 if [ "$FORCE_SELECTION" = "true" ]; then
     OPTIONAL_FLAGS="$OPTIONAL_FLAGS --force_selection"
+fi
+
+if [ "$FORCE_TOOL_CALLS" = "true" ]; then
+    OPTIONAL_FLAGS="$OPTIONAL_FLAGS --min_tool_calls 7"
 fi
 
 if [ "$DATASET" = "bugsinpy" ]; then

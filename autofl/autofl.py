@@ -16,7 +16,8 @@ RESULT_DIR = './results/'
 class AutoDebugger():
     def __init__(self, engine, dataset, bug_name, system_file, test_offset=None,
             max_num_tests=None, allow_multi_predictions=False,
-            summarize_messages=False, block_repetitions=False, force_selection=False, debug=False, **ri_kwargs):
+            summarize_messages=False, block_repetitions=False,
+            min_tool_calls=7, force_selection=False, debug=False, **ri_kwargs):
         self._engine = engine
         self._bug_name = bug_name
         self._dataset = dataset
@@ -27,12 +28,13 @@ class AutoDebugger():
         self._allow_multi_predictions = allow_multi_predictions
         self._summarize_messages = summarize_messages
         self._system_file = system_file
-        self._block_repetitions = block_repetitions 
+        self._block_repetitions = block_repetitions
+        self._min_tool_calls = min_tool_calls 
         self._force_selection = force_selection 
         self._debug = debug
 
     def _construct_valid_function_calls_list(self):
-        options = ["Conclusion:"]
+        options = []
         
         if self._dataset == 'defects4j':
             # Function 1
@@ -170,7 +172,7 @@ class AutoDebugger():
             return function_name, str(e) 
         return function_name, function_response
 
-    def step(self, function_call_mode="auto"):
+    def step(self, step_count, function_call_mode="auto"):
         if self._summarize_messages:
             prompt_messages = self.messages + [{'role': 'system', 'content': 'Summarize the important content of the immediate prior message. If you are unsure of the solution, call a function afterwards. Be concise, but fully qualify all names.'}]
         else:
@@ -183,7 +185,9 @@ class AutoDebugger():
             })
             options = ["Conclusion:"]
         else:
-            options = self._valid_function_calls
+            options = self._valid_function_calls.copy()
+            if self._min_tool_calls <= step_count: # step_count is zero indexed
+                options.append("Conclusion:")
 
         response, unparsed_response = self._engine.get_LLM_response(
             messages = prompt_messages,
@@ -283,12 +287,13 @@ class AutoDebugger():
 
     def run(self, budget=10):
         self.startup()
+        assert self._min_tool_calls <= budget
         for i in range(budget):
             if i == budget - 1:
                 function_call_mode = "none"
             else:
                 function_call_mode = "auto"
-            done = self.step(function_call_mode)
+            done = self.step(i, function_call_mode)
             time.sleep(0.1)
             if done:
                 break
@@ -314,6 +319,7 @@ if __name__ == '__main__':
     parser.add_argument('--measure_power_consumption', action="store_true")
     parser.add_argument('--allow_multi_predictions', action="store_true")
     parser.add_argument('--summarize_messages', action="store_true")
+    parser.add_argument('--min_tool_calls', default=0, type=int)
     parser.add_argument('--block_repetitions', action="store_true")
     parser.add_argument('--force_selection', action="store_true")
     parser.add_argument('--show_line_number', action="store_true")
@@ -329,7 +335,7 @@ if __name__ == '__main__':
     else:
         engine = llm_utils.GuidanceEngine(args.model)
 
-    if args.block_repetitions:
+    if args.block_repetitions or args.min_tool_calls:
         assert args.engine == 'guidance'
 
     ad = AutoDebugger(engine, args.dataset, args.bug_name, args.prompt,
@@ -340,6 +346,7 @@ if __name__ == '__main__':
         show_line_number=args.show_line_number,
         postprocess_test_snippet=args.postprocess_test_snippet,
         block_repetitions=args.block_repetitions,
+        min_tool_calls=args.min_tool_calls,
         force_selection=args.force_selection,
         debug=args.debug
     )
